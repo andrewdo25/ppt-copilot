@@ -1,0 +1,81 @@
+services:
+  mysqldb:
+    image: mysql:8.0
+    cap_add:
+      - SYS_NICE
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_DATABASE: now_db
+    container_name: mysql
+    ports:
+      - 3306:3306
+    volumes:
+      - db:/var/lib/mysql
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  pptcopilot-backend:
+    build:
+      context: ./PPTCopilot-backend
+      dockerfile: Dockerfile
+      args:
+        MYSQL_HOST: mysqldb
+        MYSQL_PORT: 3306
+        SERVER_IP: "localhost"
+    volumes:
+      - ./PPTCopilot-backend:/home/app
+    restart: always
+    ports:
+      - 8080:8080
+    depends_on:
+      - mysqldb
+    container_name: ppt-backend
+    networks:
+      - default
+    # 加上host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  
+  pptcopilot-editor:
+    build:
+      context: ./PPTCopilot-editor
+      dockerfile: Dockerfile
+      args:
+        SERVER_IP: "localhost"
+    ports:
+      - 7777:7777
+    container_name: ppt-copilot
+    depends_on:
+      - mysqldb
+    networks:
+      - default
+    
+  pptcopilot-project:
+    build:
+      context: ./PPTCopilot-project
+      dockerfile: Dockerfile
+      args:
+        SERVER_IP: "localhost"
+    ports:
+      - 9529:9529
+    container_name: ppt-project
+    depends_on:
+      - pptcopilot-backend
+      - mysqldb
+    networks:
+      - default
+
+volumes:
+  db:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
